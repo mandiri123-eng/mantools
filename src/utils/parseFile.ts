@@ -164,20 +164,36 @@ async function parseTXTFile(file: File): Promise<NetworkInterface[]> {
           return;
         }
 
-        const lines = text.split('\n').filter(line => line.trim());
+        const lines = text.split(/\r?\n/).filter(line => line.trim());
         if (lines.length === 0) {
           resolve([]);
           return;
         }
 
         const firstLine = lines[0];
-        const delimiter = firstLine.includes('\t') ? '\t' : ',';
+        let delimiter = ',';
+
+        if (firstLine.includes('\t')) {
+          delimiter = '\t';
+        } else if (firstLine.includes(';')) {
+          delimiter = ';';
+        } else if (firstLine.includes('|')) {
+          delimiter = '|';
+        }
 
         const headers = firstLine.split(delimiter).map(h => h.trim());
+        if (headers.length < 1) {
+          resolve([]);
+          return;
+        }
+
         const interfaces: NetworkInterface[] = [];
 
         for (let i = 1; i < lines.length; i++) {
-          const values = lines[i].split(delimiter).map(v => v.trim());
+          const trimmedLine = lines[i].trim();
+          if (!trimmedLine) continue;
+
+          const values = trimmedLine.split(delimiter).map(v => v.trim());
           const row: Record<string, string> = {};
 
           headers.forEach((header, index) => {
