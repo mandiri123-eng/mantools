@@ -79,7 +79,7 @@ export default function UploadSection({ onDataLoaded }: UploadSectionProps) {
 
   const isSupportedFile = (fileName: string): boolean => {
     const lowerName = fileName.toLowerCase();
-    return lowerName.endsWith('.xlsx') || lowerName.endsWith('.xls') || lowerName.endsWith('.csv');
+    return lowerName.endsWith('.xlsx') || lowerName.endsWith('.xls') || lowerName.endsWith('.csv') || lowerName.endsWith('.txt');
   };
 
   const processFiles = async (files: File[]) => {
@@ -222,7 +222,7 @@ export default function UploadSection({ onDataLoaded }: UploadSectionProps) {
           </label>
         </div>
         <p className="text-xs text-gray-500 mt-4">
-          Format yang didukung: .xlsx, .xls, .csv (file lain akan diabaikan)
+          Format yang didukung: .xlsx, .xls, .csv, .txt (file lain akan diabaikan)
         </p>
       </div>
 

@@ -152,6 +152,55 @@ export async function parseCSVFile(file: File): Promise<NetworkInterface[]> {
   });
 }
 
+async function parseTXTFile(file: File): Promise<NetworkInterface[]> {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+
+    reader.onload = (e) => {
+      try {
+        const text = e.target?.result as string;
+        if (!text) {
+          resolve([]);
+          return;
+        }
+
+        const lines = text.split('\n').filter(line => line.trim());
+        if (lines.length === 0) {
+          resolve([]);
+          return;
+        }
+
+        const firstLine = lines[0];
+        const delimiter = firstLine.includes('\t') ? '\t' : ',';
+
+        const headers = firstLine.split(delimiter).map(h => h.trim());
+        const interfaces: NetworkInterface[] = [];
+
+        for (let i = 1; i < lines.length; i++) {
+          const values = lines[i].split(delimiter).map(v => v.trim());
+          const row: Record<string, string> = {};
+
+          headers.forEach((header, index) => {
+            row[header] = values[index] || '';
+          });
+
+          const mapped = mapRowToInterface(row, headers);
+          if (mapped) {
+            interfaces.push(mapped);
+          }
+        }
+
+        resolve(interfaces);
+      } catch (error) {
+        reject(new Error(`Format TXT tidak valid: ${error instanceof Error ? error.message : 'Unknown error'}`));
+      }
+    };
+
+    reader.onerror = () => reject(new Error('Gagal membaca file'));
+    reader.readAsText(file);
+  });
+}
+
 export async function parseFile(file: File): Promise<NetworkInterface[]> {
   const fileName = file.name.toLowerCase();
 
@@ -159,7 +208,9 @@ export async function parseFile(file: File): Promise<NetworkInterface[]> {
     return parseCSVFile(file);
   } else if (fileName.endsWith('.xlsx') || fileName.endsWith('.xls')) {
     return parseExcelFile(file);
+  } else if (fileName.endsWith('.txt')) {
+    return parseTXTFile(file);
   } else {
-    throw new Error('Format file tidak didukung. Gunakan .xlsx, .xls, atau .csv');
+    throw new Error('Format file tidak didukung. Gunakan .xlsx, .xls, .csv, atau .txt');
   }
 }

@@ -1,6 +1,6 @@
 # Interface Inventory Dashboard
 
-Dashboard web untuk Network Engineer dan NOC (Network Operations Center) untuk menampilkan dan mengelola inventory interface jaringan dari file Excel/CSV.
+Dashboard web untuk Network Engineer dan NOC (Network Operations Center) untuk menampilkan dan mengelola inventory interface jaringan dari file Excel/CSV/TXT.
 
 ## Fitur Utama
 
@@ -72,11 +72,12 @@ npm run preview
 
 ## Cara Menggunakan Dashboard
 
-### 1. Upload File Excel/CSV
+### 1. Upload File Excel/CSV/TXT
 
 **Format file yang didukung:**
 - Excel: `.xlsx`, `.xls`
 - CSV: `.csv`
+- Text: `.txt` (tab-separated atau comma-separated)
 - File format lain akan diabaikan (tidak diproses, tidak error)
 
 **Struktur kolom yang dikenali** (case-insensitive):
@@ -95,11 +96,11 @@ npm run preview
 **Cara upload:**
 
 **Opsi 1 - Drag & Drop File:**
-1. Seret file Excel/CSV langsung ke area upload
+1. Seret file Excel/CSV/TXT langsung ke area upload
 
 **Opsi 2 - Drag & Drop Folder:**
 1. Seret seluruh folder ke area upload
-2. Semua file Excel/CSV di dalam folder akan diproses otomatis
+2. Semua file Excel/CSV/TXT di dalam folder akan diproses otomatis
 3. File format lain akan diabaikan
 
 **Opsi 3 - Klik Tombol:**
@@ -192,11 +193,12 @@ src/
 ### File tidak bisa di-upload
 - Cek apakah file memiliki kolom yang sesuai (minimal Device dan Interface)
 - File format lain akan diabaikan otomatis, lihat status pemrosesan untuk detailnya
-- Jika upload folder, pastikan folder berisi file Excel/CSV
+- Jika upload folder, pastikan folder berisi file Excel/CSV/TXT
+- Untuk file TXT, pastikan menggunakan tab atau koma sebagai delimiter
 
 ### Data tidak muncul setelah upload
 - Buka browser console (F12) untuk melihat error
-- Pastikan struktur kolom di file Excel/CSV sesuai format yang dikenali
+- Pastikan struktur kolom di file Excel/CSV/TXT sesuai format yang dikenali
 
 ### Warna status tidak sesuai
 - Edit file `src/config/statusColors.ts`
