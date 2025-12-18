@@ -192,6 +192,7 @@ export default function UploadSection({ onDataLoaded }: UploadSectionProps) {
             ref={fileInputRef}
             type="file"
             multiple
+            accept=".xlsx,.xls,.csv,.txt"
             onChange={handleFileInput}
             className="hidden"
             id="file-upload"
@@ -209,6 +210,7 @@ export default function UploadSection({ onDataLoaded }: UploadSectionProps) {
             type="file"
             multiple
             webkitdirectory=""
+            accept=".xlsx,.xls,.csv,.txt"
             onChange={handleFolderInput}
             className="hidden"
             id="folder-upload"
