@@ -164,6 +164,14 @@ async function parseTXTFile(file: File): Promise<NetworkInterface[]> {
           return;
         }
 
+        const interfaces: NetworkInterface[] = [];
+
+        if (text.includes('show int status') || text.includes('Port') && text.includes('Status') && text.includes('Vlan')) {
+          const parsed = parseCiscoOutput(text);
+          resolve(parsed);
+          return;
+        }
+
         const lines = text.split(/\r?\n/).filter(line => line.trim());
         if (lines.length === 0) {
           resolve([]);
@@ -186,8 +194,6 @@ async function parseTXTFile(file: File): Promise<NetworkInterface[]> {
           resolve([]);
           return;
         }
-
-        const interfaces: NetworkInterface[] = [];
 
         for (let i = 1; i < lines.length; i++) {
           const trimmedLine = lines[i].trim();
@@ -215,6 +221,71 @@ async function parseTXTFile(file: File): Promise<NetworkInterface[]> {
     reader.onerror = () => reject(new Error('Gagal membaca file'));
     reader.readAsText(file);
   });
+}
+
+function parseCiscoOutput(text: string): NetworkInterface[] {
+  const interfaces: NetworkInterface[] = [];
+  const lines = text.split(/\r?\n/);
+
+  let inDataSection = false;
+  let headerLine = '';
+  let headers: string[] = [];
+
+  for (const line of lines) {
+    const trimmed = line.trim();
+
+    if (!trimmed) continue;
+
+    if (trimmed.includes('show int status') || (trimmed.startsWith('Port') && trimmed.includes('Status'))) {
+      inDataSection = true;
+      headerLine = trimmed;
+      headers = headerLine.split(/\s+/).filter(h => h.length > 0);
+      continue;
+    }
+
+    if (!inDataSection) continue;
+
+    if (trimmed.startsWith('###') || trimmed.startsWith('DRC-HMC')) {
+      inDataSection = false;
+      continue;
+    }
+
+    if (line.match(/^-+\s+-+/)) continue;
+
+    const parts = line.split(/\s+/).filter(p => p.length > 0);
+
+    if (parts.length < 3) continue;
+
+    const interfaceName = parts[0];
+
+    if (interfaceName === 'Port' || interfaceName === 'Port-channel' || !interfaceName.includes('/')) {
+      continue;
+    }
+
+    const statusIdx = headers.indexOf('Status');
+    const vlanIdx = headers.indexOf('Vlan');
+
+    const data: Record<string, string> = {
+      'device': 'DRC-HMC-EXT01-L1',
+      'interface': interfaceName,
+      'description': parts.slice(1, statusIdx > -1 ? statusIdx : 4).join(' '),
+    };
+
+    if (statusIdx > -1 && parts[statusIdx]) {
+      data['link status'] = parts[statusIdx];
+    }
+
+    if (vlanIdx > -1 && parts[vlanIdx]) {
+      data['vlan'] = parts[vlanIdx];
+    }
+
+    const mapped = mapRowToInterface(data, Object.keys(data));
+    if (mapped) {
+      interfaces.push(mapped);
+    }
+  }
+
+  return interfaces;
 }
 
 export async function parseFile(file: File): Promise<NetworkInterface[]> {
