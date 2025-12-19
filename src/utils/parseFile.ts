@@ -226,66 +226,147 @@ async function parseTXTFile(file: File): Promise<NetworkInterface[]> {
 function parseCiscoOutput(text: string): NetworkInterface[] {
   const interfaces: NetworkInterface[] = [];
   const lines = text.split(/\r?\n/);
+  const deviceMatch = text.match(/([A-Z0-9]+-[A-Z0-9]+-[A-Z0-9]+-[A-Z0-9]+)/);
+  const device = deviceMatch ? deviceMatch[1] : 'Unknown';
 
-  let inDataSection = false;
-  let headerLine = '';
-  let headers: string[] = [];
+  let interfaceMap: Map<string, Partial<NetworkInterface>> = new Map();
 
-  for (const line of lines) {
+  for (let i = 0; i < lines.length; i++) {
+    const line = lines[i];
     const trimmed = line.trim();
 
-    if (!trimmed) continue;
+    if (trimmed.includes('show int status')) {
+      for (let j = i + 2; j < lines.length; j++) {
+        const dataLine = lines[j];
+        const dataTrimmed = dataLine.trim();
 
-    if (trimmed.includes('show int status') || (trimmed.startsWith('Port') && trimmed.includes('Status'))) {
-      inDataSection = true;
-      headerLine = trimmed;
-      headers = headerLine.split(/\s+/).filter(h => h.length > 0);
-      continue;
+        if (!dataTrimmed || dataTrimmed.startsWith('###') || dataTrimmed.match(/^DRC-[A-Z0-9]/)) {
+          break;
+        }
+
+        if (dataLine.match(/^[A-Za-z]/)) {
+          const parsed = parseShowIntStatusLine(dataLine);
+          if (parsed && parsed.interface) {
+            const key = parsed.interface;
+            if (!interfaceMap.has(key)) {
+              interfaceMap.set(key, {
+                device,
+                interface: parsed.interface,
+                description: parsed.description || '',
+              });
+            }
+            const existing = interfaceMap.get(key)!;
+            existing.linkStatus = parsed.status || existing.linkStatus;
+            existing.vlanMode = parsed.vlan || existing.vlanMode;
+            existing.duplex = parsed.duplex || existing.duplex;
+            existing.speed = parsed.speed || existing.speed;
+            existing.type = parsed.type || existing.type;
+          }
+        }
+      }
+      i += 100;
     }
 
-    if (!inDataSection) continue;
+    if (trimmed.includes('show int des')) {
+      for (let j = i + 2; j < lines.length; j++) {
+        const dataLine = lines[j];
+        const dataTrimmed = dataLine.trim();
 
-    if (trimmed.startsWith('###') || trimmed.startsWith('DRC-HMC')) {
-      inDataSection = false;
-      continue;
-    }
+        if (!dataTrimmed || dataTrimmed.startsWith('###') || dataTrimmed.match(/^DRC-[A-Z0-9]/)) {
+          break;
+        }
 
-    if (line.match(/^-+\s+-+/)) continue;
-
-    const parts = line.split(/\s+/).filter(p => p.length > 0);
-
-    if (parts.length < 3) continue;
-
-    const interfaceName = parts[0];
-
-    if (interfaceName === 'Port' || interfaceName === 'Port-channel' || !interfaceName.includes('/')) {
-      continue;
-    }
-
-    const statusIdx = headers.indexOf('Status');
-    const vlanIdx = headers.indexOf('Vlan');
-
-    const data: Record<string, string> = {
-      'device': 'DRC-HMC-EXT01-L1',
-      'interface': interfaceName,
-      'description': parts.slice(1, statusIdx > -1 ? statusIdx : 4).join(' '),
-    };
-
-    if (statusIdx > -1 && parts[statusIdx]) {
-      data['link status'] = parts[statusIdx];
-    }
-
-    if (vlanIdx > -1 && parts[vlanIdx]) {
-      data['vlan'] = parts[vlanIdx];
-    }
-
-    const mapped = mapRowToInterface(data, Object.keys(data));
-    if (mapped) {
-      interfaces.push(mapped);
+        if (dataLine.match(/^[A-Za-z]/)) {
+          const parsed = parseInterfaceDesLine(dataLine);
+          if (parsed && parsed.interface) {
+            const key = parsed.interface;
+            if (!interfaceMap.has(key)) {
+              interfaceMap.set(key, {
+                device,
+                interface: parsed.interface,
+                description: parsed.description || '',
+              });
+            }
+            const existing = interfaceMap.get(key)!;
+            existing.adminStatus = parsed.adminStatus || existing.adminStatus;
+            existing.operStatus = parsed.operStatus || existing.operStatus;
+            existing.description = parsed.description || existing.description;
+          }
+        }
+      }
+      i += 100;
     }
   }
 
+  interfaceMap.forEach((data) => {
+    const mapped = mapRowToInterface(
+      {
+        device: data.device || '',
+        interface: data.interface || '',
+        'link status': data.linkStatus || '',
+        'admin status': data.adminStatus || '',
+        'oper status': data.operStatus || '',
+        vlan: data.vlanMode || '',
+        duplex: data.duplex || '',
+        speed: data.speed || '',
+        type: data.type || '',
+        description: data.description || '',
+      },
+      ['device', 'interface', 'link status', 'admin status', 'oper status', 'vlan', 'duplex', 'speed', 'type', 'description']
+    );
+    if (mapped) {
+      interfaces.push(mapped);
+    }
+  });
+
   return interfaces;
+}
+
+function parseShowIntStatusLine(line: string): Partial<NetworkInterface> & { status?: string; vlan?: string; duplex?: string; speed?: string; type?: string } | null {
+  const parts = line.split(/\s{2,}/).map(p => p.trim());
+
+  if (parts.length < 4) return null;
+
+  const interfaceName = parts[0];
+
+  if (!interfaceName.match(/^[A-Za-z]/)) return null;
+
+  const description = parts[1] || '';
+  const status = parts[2] || '';
+  const vlan = parts[3] || '';
+  const duplex = parts[4] || '';
+  const speed = parts[5] || '';
+  const type = parts.slice(6).join(' ') || '';
+
+  return {
+    interface: interfaceName,
+    description,
+    status,
+    vlan,
+    duplex,
+    speed,
+    type,
+  };
+}
+
+
+function parseInterfaceDesLine(line: string): { interface?: string; adminStatus?: string; operStatus?: string; description?: string } | null {
+  const parts = line.split(/\s+/);
+  if (parts.length < 3) return null;
+
+  const interfaceName = parts[0];
+  if (!interfaceName.match(/^[A-Za-z]/)) return null;
+
+  const adminStatus = parts[1];
+  const operStatus = parts[2];
+  const description = parts.slice(3).join(' ');
+
+  return {
+    interface: interfaceName,
+    adminStatus,
+    operStatus,
+    description,
+  };
 }
 
 export async function parseFile(file: File): Promise<NetworkInterface[]> {
